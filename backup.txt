@@ -1,0 +1,47 @@
+post-commit:
+
+#!/bin/bash
+LOG_FILE="git_history.txt"
+
+if [ ! -f "$LOG_FILE" ]; then
+    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
+    echo "| No. | Type    | Date & Time         | Hash     | Author               | Message                                  |" >> "$LOG_FILE"
+    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
+fi
+
+COUNT=$(git rev-list --count HEAD)
+DATE=$(date "+%Y-%m-%d %H:%M:%S")
+HASH=$(git log -1 --format=%h)
+AUTHOR=$(git log -1 --format=%an)
+MSG=$(git log -1 --format=%s)
+
+printf "| %-3s | COMMIT  | %-19s | %-8s | %-20.20s | %-40.40s |\n" "$COUNT" "$DATE" "$HASH" "$AUTHOR" "$MSG" >> "$LOG_FILE"
+echo "Hook: Local commit logged in $LOG_FILE"
+
+post-merge:
+#!/bin/bash
+LOG_FILE="git_history.txt"
+
+# একদম নতুন এবং প্রশস্ত হেডার (Wide Header)
+if [ ! -f "$LOG_FILE" ]; then
+    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
+    echo "| No. | Type    | Date & Time         | Hash     | Author               | Message                                  |" >> "$LOG_FILE"
+    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
+fi
+
+# পুলের জন্য রেঞ্জ নির্ধারণ (রেঞ্জ না পাওয়া গেলে লেটেস্ট কমিট নিবে)
+REVS=$(git rev-list ORIG_HEAD..HEAD)
+if [ -z "$REVS" ]; then
+    REVS=$(git rev-parse HEAD)
+fi
+
+# লুপ চালিয়ে প্রতিটি কমিটকে টেবিলে সাজানো
+for hash in $REVS; do
+    COUNT=$(git rev-list --count "$hash")
+    DATE=$(git log -1 --format=%ad --date=format:'%Y-%m-%d %H:%M:%S' "$hash")
+    AUTHOR=$(git log -1 --format=%an "$hash")
+    MSG=$(git log -1 --format=%s "$hash")
+    printf "| %-3s | PULL    | %-19s | %-8s | %-20.20s | %-40.40s |\n" "$COUNT" "$DATE" "$hash" "$AUTHOR" "$MSG" >> "$LOG_FILE"
+done
+
+echo "Hook: Pull session logged in $LOG_FILE"
