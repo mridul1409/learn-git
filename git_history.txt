@@ -1,3 +1,0 @@
-No.  Type    Date Time            Hash                                      Author               Message
-35   COMMIT  2026-04-05 18:14:21  df4b509                                   mridul1409           A new commit to check local
-36   PULL    2026-04-05 18:15:21  76dd80c5c0501e5a10a210125446e23e4ef1962a  Mehedi Hasan Mridul  A new int commit
