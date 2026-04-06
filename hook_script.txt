@@ -1,10 +1,10 @@
 post-commit:
 
 
-
 #!/bin/bash
 RAW_LOG=".git_history.log"
 FINAL_TXT="git_history.txt"
+FINAL_JSON="git_history.json"
 
 COUNT=$(git rev-list --count HEAD)
 DATE=$(date "+%Y-%m-%d_%H:%M:%S")
@@ -17,16 +17,37 @@ echo "$COUNT|COMMIT|$DATE|$HASH|$AUTHOR|$MSG|$DESC" >> "$RAW_LOG"
 
 (echo "No.|Type|Date_Time|Hash|Author|Message|Description"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
 
-echo "Hook: Dynamic log updated in $FINAL_TXT"
+
+echo "[" > "$FINAL_JSON"
+first=1
+while IFS='|' read -r no type dt hash auth msg desc; do
+    if [ $first -ne 1 ]; then echo "," >> "$FINAL_JSON"; fi
+    
+    clean_auth=$(echo "$auth" | sed 's/_/ /g; s/"/\\"/g')
+    clean_msg=$(echo "$msg" | sed 's/_/ /g; s/"/\\"/g')
+    clean_desc=$(echo "$desc" | sed 's/_/ /g; s/"/\\"/g')
+    clean_dt=$(echo "$dt" | sed 's/_/ /g')
+
+    printf "  {\n    \"no\": %s,\n    \"type\": \"%s\",\n    \"date\": \"%s\",\n    \"hash\": \"%s\",\n    \"author\": \"%s\",\n    \"message\": \"%s\",\n    \"description\": \"%s\"\n  }" \
+    "$no" "$type" "$clean_dt" "$hash" "$clean_auth" "$clean_msg" "$clean_desc" >> "$FINAL_JSON"
+    first=0
+done < "$RAW_LOG"
+echo -e "\n]" >> "$FINAL_JSON"
+
+echo "Hook: Logs updated in $FINAL_TXT and $FINAL_JSON"
 
 
 
 
 post-merge:
 
+
+
+
 #!/bin/bash
 RAW_LOG=".git_history.log"
 FINAL_TXT="git_history.txt"
+FINAL_JSON="git_history.json"
 
 COMMITS=$(git log ORIG_HEAD..HEAD --reverse --pretty=format:"%h" 2>/dev/null)
 
@@ -56,5 +77,21 @@ if [ -f "$RAW_LOG" ]; then
     (echo "No.|Type|Date_Time|Hash|Author|Message|Description"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
 fi
 
-echo "Hook: Dynamic pull log updated in $FINAL_TXT"
 
+echo "[" > "$FINAL_JSON"
+first=1
+while IFS='|' read -r no type dt hash auth msg desc; do
+    if [ $first -ne 1 ]; then echo "," >> "$FINAL_JSON"; fi
+    
+    clean_auth=$(echo "$auth" | sed 's/_/ /g; s/"/\\"/g')
+    clean_msg=$(echo "$msg" | sed 's/_/ /g; s/"/\\"/g')
+    clean_desc=$(echo "$desc" | sed 's/_/ /g; s/"/\\"/g')
+    clean_dt=$(echo "$dt" | sed 's/_/ /g')
+
+    printf "  {\n    \"no\": %s,\n    \"type\": \"%s\",\n    \"date\": \"%s\",\n    \"hash\": \"%s\",\n    \"author\": \"%s\",\n    \"message\": \"%s\",\n    \"description\": \"%s\"\n  }" \
+    "$no" "$type" "$clean_dt" "$hash" "$clean_auth" "$clean_msg" "$clean_desc" >> "$FINAL_JSON"
+    first=0
+done < "$RAW_LOG"
+echo -e "\n]" >> "$FINAL_JSON"
+
+echo "Hook: Logs updated in $FINAL_TXT and $FINAL_JSON"
