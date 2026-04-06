@@ -1,2 +1,3 @@
-commit_history.txt
-pulled_commits.txt
+.git_history.log
+git_history.txt
+backup.txt
