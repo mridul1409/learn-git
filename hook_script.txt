@@ -1,0 +1,60 @@
+post-commit:
+
+
+
+#!/bin/bash
+RAW_LOG=".git_history.log"
+FINAL_TXT="git_history.txt"
+
+COUNT=$(git rev-list --count HEAD)
+DATE=$(date "+%Y-%m-%d_%H:%M:%S")
+HASH=$(git log -1 --format=%h)
+AUTHOR=$(git log -1 --format=%an | tr ' ' '_')
+MSG=$(git log -1 --format=%s | tr ' ' '_')
+DESC=$(git log -1 --format=%b $hash | tr '\n' ' ' | tr ' ' '_')
+
+echo "$COUNT|COMMIT|$DATE|$HASH|$AUTHOR|$MSG|$DESC" >> "$RAW_LOG"
+
+(echo "No.|Type|Date_Time|Hash|Author|Message|Description"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
+
+echo "Hook: Dynamic log updated in $FINAL_TXT"
+
+
+
+
+post-merge:
+
+#!/bin/bash
+RAW_LOG=".git_history.log"
+FINAL_TXT="git_history.txt"
+
+COMMITS=$(git log ORIG_HEAD..HEAD --reverse --pretty=format:"%h" 2>/dev/null)
+
+
+if [ -z "$COMMITS" ]; then
+    COMMITS=$(git rev-parse HEAD)
+fi
+
+
+for hash in $COMMITS; do
+    if [ ! -z "$hash" ]; then
+
+        if ! grep -q "$hash" "$RAW_LOG" 2>/dev/null; then
+            COUNT=$(git rev-list --count "$hash")
+            DATE=$(git log -1 --format=%ad --date=format:'%Y-%m-%d_%H:%M:%S' "$hash")
+            AUTHOR=$(git log -1 --format=%an "$hash" | tr ' ' '_')
+            MSG=$(git log -1 --format=%s "$hash" | tr ' ' '_')
+            DESC=$(git log -1 --format=%b "$hash" | tr '\n' ' ' | tr ' ' '_')
+            
+            echo "$COUNT|PULL|$DATE|$hash|$AUTHOR|$MSG|$DESC" >> "$RAW_LOG"
+        fi
+    fi
+done
+
+
+if [ -f "$RAW_LOG" ]; then
+    (echo "No.|Type|Date_Time|Hash|Author|Message|Description"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
+fi
+
+echo "Hook: Dynamic pull log updated in $FINAL_TXT"
+
