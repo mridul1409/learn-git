@@ -1,47 +1,57 @@
 post-commit:
 
 #!/bin/bash
-LOG_FILE="git_history.txt"
-
-if [ ! -f "$LOG_FILE" ]; then
-    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
-    echo "| No. | Type    | Date & Time         | Hash     | Author               | Message                                  |" >> "$LOG_FILE"
-    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
-fi
+RAW_LOG=".git_history.log"
+FINAL_TXT="git_history.txt"
 
 COUNT=$(git rev-list --count HEAD)
-DATE=$(date "+%Y-%m-%d %H:%M:%S")
+DATE=$(date "+%Y-%m-%d_%H:%M:%S")
 HASH=$(git log -1 --format=%h)
-AUTHOR=$(git log -1 --format=%an)
-MSG=$(git log -1 --format=%s)
+AUTHOR=$(git log -1 --format=%an | tr ' ' '_')
+MSG=$(git log -1 --format=%s | tr ' ' '_')
 
-printf "| %-3s | COMMIT  | %-19s | %-8s | %-20.20s | %-40.40s |\n" "$COUNT" "$DATE" "$HASH" "$AUTHOR" "$MSG" >> "$LOG_FILE"
-echo "Hook: Local commit logged in $LOG_FILE"
+echo "$COUNT|COMMIT|$DATE|$HASH|$AUTHOR|$MSG" >> "$RAW_LOG"
+
+(echo "No.|Type|Date_Time|Hash|Author|Message"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
+
+echo "Hook: Dynamic log updated in $FINAL_TXT"
+
+
+
 
 post-merge:
+
 #!/bin/bash
-LOG_FILE="git_history.txt"
+RAW_LOG=".git_history.log"
+FINAL_TXT="git_history.txt"
 
-# একদম নতুন এবং প্রশস্ত হেডার (Wide Header)
-if [ ! -f "$LOG_FILE" ]; then
-    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
-    echo "| No. | Type    | Date & Time         | Hash     | Author               | Message                                  |" >> "$LOG_FILE"
-    echo "+-----+---------+---------------------+----------+----------------------+------------------------------------------+" >> "$LOG_FILE"
+# ORIG_HEAD হলো পুল করার আগের পজিশন, আর HEAD হলো বর্তমান পজিশন
+# এই দুটির মধ্যবর্তী সব কমিট বের করা হবে
+COMMITS=$(git log ORIG_HEAD..HEAD --reverse --pretty=format:"%h" 2>/dev/null)
+
+# যদি রেঞ্জ খালি থাকে (যেমন ম্যানুয়ালি স্ক্রিপ্ট রান করলে), তবে অন্তত শেষ কমিটটি নিবে
+if [ -z "$COMMITS" ]; then
+    COMMITS=$(git rev-parse HEAD)
 fi
 
-# পুলের জন্য রেঞ্জ নির্ধারণ (রেঞ্জ না পাওয়া গেলে লেটেস্ট কমিট নিবে)
-REVS=$(git rev-list ORIG_HEAD..HEAD)
-if [ -z "$REVS" ]; then
-    REVS=$(git rev-parse HEAD)
-fi
-
-# লুপ চালিয়ে প্রতিটি কমিটকে টেবিলে সাজানো
-for hash in $REVS; do
-    COUNT=$(git rev-list --count "$hash")
-    DATE=$(git log -1 --format=%ad --date=format:'%Y-%m-%d %H:%M:%S' "$hash")
-    AUTHOR=$(git log -1 --format=%an "$hash")
-    MSG=$(git log -1 --format=%s "$hash")
-    printf "| %-3s | PULL    | %-19s | %-8s | %-20.20s | %-40.40s |\n" "$COUNT" "$DATE" "$hash" "$AUTHOR" "$MSG" >> "$LOG_FILE"
+# প্রতিটি কমিটকে আলাদাভাবে প্রসেস করা
+for hash in $COMMITS; do
+    if [ ! -z "$hash" ]; then
+        # ডুপ্লিকেট এড়াতে চেক করা
+        if ! grep -q "$hash" "$RAW_LOG" 2>/dev/null; then
+            COUNT=$(git rev-list --count "$hash")
+            DATE=$(git log -1 --format=%ad --date=format:'%Y-%m-%d_%H:%M:%S' "$hash")
+            AUTHOR=$(git log -1 --format=%an "$hash" | tr ' ' '_')
+            MSG=$(git log -1 --format=%s "$hash" | tr ' ' '_')
+            
+            echo "$COUNT|PULL|$DATE|$hash|$AUTHOR|$MSG" >> "$RAW_LOG"
+        fi
+    fi
 done
 
-echo "Hook: Pull session logged in $LOG_FILE"
+# ডায়নামিক টেবিল জেনারেট করা
+if [ -f "$RAW_LOG" ]; then
+    (echo "No.|Type|Date_Time|Hash|Author|Message"; cat "$RAW_LOG") | sed 's/_/ /g' | column -t -s '|' > "$FINAL_TXT"
+fi
+
+echo "Hook: Dynamic pull log updated in $FINAL_TXT"
